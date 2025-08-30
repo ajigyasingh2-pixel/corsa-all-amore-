@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Corsa all'Amore Deluxe+</title>
+<style>
+    body {
+        margin: 0;
+        overflow: hidden;
+        font-family: 'Comic Sans MS', cursive, sans-serif;
+        background: linear-gradient(to bottom, #ffcce6, #ff99cc);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+    }
+    #gameCanvas {
+        border: 3px solid #ff3385;
+        display: block;
+        z-index: 1;
+    }
+    #message {
+        position: absolute;
+        top: 10px;
+        font-size: 22px;
+        color: #ff0066;
+        font-weight: bold;
+        text-align: center;
+        width: 100%;
+        z-index: 2;
+    }
+    #romanticOverlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 204, 230, 0.85);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 28px;
+        color: #cc0052;
+        font-weight: bold;
+        text-align: center;
+        opacity: 0;
+        transition: opacity 1s ease;
+        z-index: 3;
+    }
+</style>
+</head>
+<body>
+<div id="message">Benvenuto nella Corsa all'Amore! ❤️</div>
+<canvas id="gameCanvas" width="400" height="600"></canvas>
+<div id="romanticOverlay"></div>
+
+<audio id="bgMusic" loop autoplay>
+  <source src="audio/dormiamo.mp3" type="audio/mpeg">
+</audio>
+<audio id="pointSound">
+  <source src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" type="audio/ogg">
+</audio>
+<audio id="levelSound">
+  <source src="https://actions.google.com/sounds/v1/cartoon/pop.ogg" type="audio/ogg">
+</audio>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById("romanticOverlay");
+
+const heart = {
+    x: canvas.width/2 - 25,
+    y: canvas.height - 70,
+    width: 50,
+    height: 50,
+    speed: 6,
+    color: 'red'
+};
+
+let obstacles = [];
+let fallingHearts = [];
+let explosionHearts = [];
+let score = 0;
+let level = 1;
+let paused = false;
+
+const keys = {};
+document.addEventListener('keydown', e => keys[e.key] = true);
+document.addEventListener('keyup', e => keys[e.key] = false);
+
+let touchStartX = 0;
+canvas.addEventListener('touchstart', e => touchStartX = e.touches[0].clientX);
+canvas.addEventListener('touchmove', e => {
+    let touchX = e.touches[0].clientX;
+    let deltaX = touchX - touchStartX;
+    heart.x += deltaX;
+    if(heart.x < 0) heart.x = 0;
+    if(heart.x > canvas.width - heart.width) heart.x = canvas.width - heart.width;
+    touchStartX = touchX;
+});
+
+const romanticMessages = [
+    "Sei la mia stella che illumina il cammino ✨",
+    "Ogni battito del mio cuore è per te ❤️",
+    "Vorrei restare con te per sempre 💞",
+    "Il tuo amore è il mio dono più grande 🎁",
+    "Con te il mondo è più bello 🌸",
+    "Il mio cuore ti appartiene 💖",
+    "Sei il mio destino 🌹",
+    "Ti amo più di quanto le parole possano dire 💓",
+    "Senza di te nulla avrebbe senso 💘",
+    "Sei la mia dolce metà 🍫"
+];
+
+function spawnObstacle() {
+    let size = 35;
+    let x = Math.random() * (canvas.width - size);
+    obstacles.push({x, y: -size, width: size, height: size, color: '#ff4da6', speed: 2 + level});
+}
+
+function spawnFallingHeart() {
+    let size = 10 + Math.random() * 10;
+    let x = Math.random() * canvas.width;
+    fallingHearts.push({x, y: -size, width: size, height: size, speed: 1 + Math.random() * 2, color: '#ffb3d9'});
+}
+
+function createExplosion(x, y) {
+    for(let i=0; i<25; i++) {
+        explosionHearts.push({
+            x, y,
+            size: 8 + Math.random()*12,
+            color: 'red',
+            dx: (Math.random()-0.5)*5,
+            dy: (Math.random()-0.5)*5,
+            life: 60
+        });
+    }
+}
+
+function showRomanticMessage() {
+    paused = true;
+    const msg = romanticMessages[Math.floor(Math.random()*romanticMessages.length)];
+    overlay.textContent = msg;
+    overlay.style.opacity = 1;
+
+    setTimeout(() => {
+        overlay.style.opacity = 0;
+        setTimeout(() => paused = false, 1000);
+    }, 2500);
+}
+
+function update() {
+    if(paused) return;
+
+    if(keys['ArrowLeft'] && heart.x > 0) heart.x -= heart.speed;
+    if(keys['ArrowRight'] && heart.x < canvas.width - heart.width) heart.x += heart.speed;
+
+    for(let i = obstacles.length - 1; i >= 0; i--) {
+        obstacles[i].y += obstacles[i].speed;
+        if(obstacles[i].y > canvas.height) {
+            obstacles.splice(i,1);
+            score++;
+            document.getElementById("pointSound").play();
+            checkLevelUp();
+        }
+        if(heart.x < obstacles[i].x + obstacles[i].width &&
+           heart.x + heart.width > obstacles[i].x &&
+           heart.y < obstacles[i].y + obstacles[i].height &&
+           heart.y + heart.height > obstacles[i].y) {
+               resetGame("Oh no! Ti sei scontrato!");
+               return;
+        }
+    }
+
+    for(let i = fallingHearts.length - 1; i >= 0; i--) {
+        fallingHearts[i].y += fallingHearts[i].speed;
+        if(fallingHearts[i].y > canvas.height) fallingHearts.splice(i,1);
+    }
+
+    for(let i = explosionHearts.length - 1; i >= 0; i--) {
+        explosionHearts[i].x += explosionHearts[i].dx;
+        explosionHearts[i].y += explosionHearts[i].dy;
+        explosionHearts[i].life--;
+        if(explosionHearts[i].life <= 0) explosionHearts.splice(i,1);
+    }
+
+    if(Math.random() < 0.02 + level*0.005) spawnObstacle();
+    if(Math.random() < 0.05) spawnFallingHeart();
+}
+
+function checkLevelUp() {
+    if(score % 5 === 0 && score !== 0) {
+        level++;
+        document.getElementById("levelSound").play();
+        createExplosion(canvas.width/2, canvas.height/2);
+        showRomanticMessage();
+    }
+}
+
+function resetGame(msg) {
+    alert(msg + "\nPunteggio: " + score);
+    score = 0;
+    level = 1;
+    obstacles = [];
+    heart.x = canvas.width/2 - heart.width/2;
+    document.getElementById('message').textContent = "Benvenuto nella Corsa all'Amore! ❤️";
+}
+
+function drawHeart(x, y, w, h, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x + w/2, y + h/4);
+    ctx.bezierCurveTo(x + w/2 + w/4, y, x + w, y + h/2, x + w/2, y + h);
+    ctx.bezierCurveTo(x, y + h/2, x + w/2 - w/4, y, x + w/2, y + h/4);
+    ctx.fill();
+}
+
+function drawBackground() {
+    // grande cuore centrale con lettera B
+    ctx.save();
+    ctx.globalAlpha = 0.2;
+    drawHeart(canvas.width/2 - 100, canvas.height/2 - 120, 200, 200, "#ff1a75");
+    ctx.restore();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 80px Comic Sans MS";
+    ctx.textAlign = "center";
+    ctx.fillText("B", canvas.width/2, canvas.height/2 + 20);
+}
+
+function draw() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    drawBackground();
+
+    fallingHearts.forEach(fh => drawHeart(fh.x, fh.y, fh.width, fh.height, fh.color));
+
+    obstacles.forEach(obs => drawHeart(obs.x, obs.y, obs.width, obs.height, obs.color));
+
+    drawHeart(heart.x, heart.y, heart.width, heart.height, heart.color);
+
+    explosionHearts.forEach(ex => drawHeart(ex.x, ex.y, ex.size, ex.size, ex.color));
+
+    ctx.fillStyle = 'white';
+    ctx.font = '20px Comic Sans MS';
+    ctx.textAlign = "left";
+    ctx.fillText("Punteggio: " + score, 10, 30);
+    ctx.fillText("Livello: " + level, 10, 60);
+}
+
+function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+</script>
+</body>
+</html>
